@@ -95,8 +95,10 @@ void KeyFrame::SetPose(const cv::Mat &Tcw_)
     Tcw_.copyTo(Tcw);
     cv::Mat Rcw = Tcw.rowRange(0,3).colRange(0,3);
     cv::Mat tcw = Tcw.rowRange(0,3).col(3);
+    //!旋转矩阵是正交矩阵，所以旋转矩阵的逆等于其转置。
     cv::Mat Rwc = Rcw.t();
     // 和普通帧中进行的操作相同
+    //!可以看成，光心的位置等于先相机的平移向量去反，再乘上相机的旋转矩阵，
     Ow = -Rwc*tcw;
 
     // 计算当前位姿的逆

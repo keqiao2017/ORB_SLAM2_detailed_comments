@@ -469,7 +469,8 @@ void Frame::UpdatePoseMatrices()
     // 从变换矩阵中提取出旋转矩阵
     mtcw = mTcw.rowRange(0,3).col(3);
 
-    // mTcw 求逆后是当前相机坐标系变换到世界坐标系下，对应的光心变换到世界坐标系下就是 mTcw的逆 中对应的平移向量
+    //!光心的位置看成先做反向的平移，后面再做旋转
+    // matrix size is (3x3) * (3x1) = (3x1)
     mOw = -mRcw.t()*mtcw;
 }
 

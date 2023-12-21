@@ -3,7 +3,11 @@
         {
             "name": "Win32",
             "includePath": [
-                "${workspaceFolder}/**"
+                "${workspaceFolder}/**",
+                "/usr/local",
+                "/opt/homebrew/Cellar/opencv/",
+                "/opt/homebrew/Cellar/opencv/4.8.1_4/include/opencv4",
+                "/opt/homebrew/Cellar/opencv@3/**"
             ],
             "defines": [
                 "_DEBUG",

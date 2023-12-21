@@ -574,6 +574,8 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
 {
     int nmatches=0;
     // F1中特征点和F2中匹配关系，注意是按照F1特征点数目分配空间
+    // key是来指示第一帧中的特征点，值是来指示在第二帧中的特征点对应的idx
+    // 如果值是负一，说明没有匹配
     vnMatches12 = vector<int>(F1.mvKeysUn.size(),-1);
 
     // Step 1 构建旋转直方图，HISTO_LENGTH = 30
@@ -624,6 +626,8 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
             // 计算两个特征点描述子距离
             int dist = DescriptorDistance(d1,d2);
 
+            //if the current distance is pretty large then skip
+            //but this line seems not to be run
             if(vMatchedDistance[i2]<=dist)
                 continue;
             // 如果当前匹配距离更小，更新最佳次佳距离
@@ -668,6 +672,7 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
                         rot+=360.0f;
                     // 前面factor = HISTO_LENGTH/360.0f 
                     // bin = rot / 360.of * HISTO_LENGTH 表示当前rot被分配在第几个直方图bin  
+                    // 相当于把360度分为HISTO_LENGTH
                     int bin = round(rot*factor);
                     // 如果bin 满了又是一个轮回
                     if(bin==HISTO_LENGTH)
@@ -687,13 +692,15 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
         int ind2=-1;
         int ind3=-1;
         // 筛选出在旋转角度差落在在直方图区间内数量最多的前三个bin的索引
+        // 如果前三差距过大，甚至可能不满前三，那么ind2，ind3可能都是-1
         ComputeThreeMaxima(rotHist,HISTO_LENGTH,ind1,ind2,ind3);
 
         for(int i=0; i<HISTO_LENGTH; i++)
         {
+            //ind2，ind3可能都是-1，那么这里就不会满足，会在下一步删除掉匹配对
             if(i==ind1 || i==ind2 || i==ind3)
                 continue;
-            // 剔除掉不在前三的匹配对，因为他们不符合“主流旋转方向”    
+            // 剔除掉不在前三的匹配对（或不满前三），因为他们不符合“主流旋转方向”    
             for(size_t j=0, jend=rotHist[i].size(); j<jend; j++)
             {
                 int idx1 = rotHist[i][j];
@@ -710,7 +717,9 @@ int ORBmatcher::SearchForInitialization(Frame &F1, Frame &F2, vector<cv::Point2f
     //Update prev matched
     // Step 7 将最后通过筛选的匹配好的特征点保存到vbPrevMatched
     for(size_t i1=0, iend1=vnMatches12.size(); i1<iend1; i1++)
+        // 如果F2中的特征点匹配到了F1中的特征点，那么值>=0
         if(vnMatches12[i1]>=0)
+        // 本来存储的是参考帧的所有特征点坐标，该函数更新为匹配好的当前帧的特征点坐标 (呼应前面)
             vbPrevMatched[i1]=F2.mvKeysUn[vnMatches12[i1]].pt;
 
     return nmatches;

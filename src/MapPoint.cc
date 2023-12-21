@@ -93,7 +93,8 @@ MapPoint::MapPoint(const cv::Mat &Pos, Map* pMap, Frame* pFrame, const int &idxF
     const float dist = cv::norm(PC);    //到相机的距离
     const int level = pFrame->mvKeysUn[idxF].octave;
     const float levelScaleFactor =  pFrame->mvScaleFactors[level];
-    const int nLevels = pFrame->mnScaleLevels;
+    // the number of the levels 
+    const int nLevels = pFrame->mnScaleLevels; 
 
     // 另见 PredictScale 函数前的注释
     /* 666,因为在提取特征点的时候, 考虑到了图像的尺度问题,因此在不同图层上提取得到的特征点,对应着特征点距离相机的远近
@@ -519,7 +520,9 @@ void MapPoint::UpdateNormalAndDepth()
         KeyFrame* pKF = mit->first;
         cv::Mat Owi = pKF->GetCameraCenter();
         // 获得地图点和观测到它关键帧的向量并归一化
+        // 表示方向所以需要归一化
         cv::Mat normali = mWorldPos - Owi;
+        // normal一开始是零矩阵加上归一化的方向矩阵
         normal = normal + normali/cv::norm(normali);                       
         n++;
     } 
