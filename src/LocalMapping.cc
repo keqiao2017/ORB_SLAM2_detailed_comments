@@ -1,6 +1,4 @@
-/**
- * @file LocalMapping.cc
- * @author guoqing (1337841346@qq.com)
+/* @author guoqing (1337841346@qq.com)
  * @brief 局部建图线程
  * @version 0.1
  * @date 2019-04-29
@@ -96,6 +94,13 @@ void LocalMapping::Run()
 
             // Triangulate new MapPoints
             // Step 4 当前关键帧与相邻关键帧通过三角化产生新的地图点，使得跟踪更稳
+            /** qke comment @2023-12-05 >
+            * 这里的关键帧和跟踪线程的关键帧不同的是，前者：
+            * 单目初始化时前两帧匹配生成地图点，双目左右目匹配生成地图点，RGB-D测量得到的地图点
+            * Tracking::CreateNewKeyFrame() 中为双目和RGB-D生成了新的地图点
+            * Tracking::UpdateLastFrame() 中为双目和RGB-D生成了新的临时地图点(后面tracking剔除），单目不生成
+            * 最后这里是通过相邻关键帧之间的三角话产生新的地图点
+            */
             CreateNewMapPoints();
 
             // 已经处理完队列中的最后的一个关键帧
@@ -116,6 +121,9 @@ void LocalMapping::Run()
                 // Step 6 当局部地图中的关键帧大于2个的时候进行局部地图的BA
                 if(mpMap->KeyFramesInMap()>2)
                     // 注意这里的第二个参数是按地址传递的,当这里的 mbAbortBA 状态发生变化时，能够及时执行/停止BA
+                    /** qke comment @2023-12-05 >
+                    * 这里和之前的BA不一样的地方在于之前只优化位姿，这里优化的是地图点和位姿
+                    */
                     Optimizer::LocalBundleAdjustment(mpCurrentKeyFrame,&mbAbortBA, mpMap);
 
                 // Check redundant local Keyframes
@@ -188,6 +196,9 @@ void LocalMapping::ProcessNewKeyFrame()
     {
         unique_lock<mutex> lock(mMutexNewKFs);
         // 取出列表中最前面的关键帧，作为当前要处理的关键帧
+        /** qke comment @2023-12-05 >
+         *  mlNewKeyFrames 是之前跟踪线程里面创建的关键帧，放在这里
+        */
         mpCurrentKeyFrame = mlNewKeyFrames.front();
         // 取出最前面的关键帧后，在原来的列表里删掉该关键帧
         mlNewKeyFrames.pop_front();
@@ -209,9 +220,20 @@ void LocalMapping::ProcessNewKeyFrame()
         {
             if(!pMP->isBad())
             {
+                /** qke comment @2023-12-06 >
+                * 不懂为什么!pMP->IsInKeyFrame(mpCurrentKeyFrame) 这里的地图点不是已经来自于CurrentFrame了么
+                * 可能是说，有些地图点已经记录，但是观测关系没有记录（之前是对关键帧进行操作，没有对Mappoint操作）
+                * 
+                * MapPoints分为两种情况：在tracking过程跟踪到的MapPoints；创建关键帧时创建的MapPoints。
+                * 前者很可靠，直接为他们添加属性（添加观测者，平均观测方向和观测距离范围，更新最佳描述子），
+                * 后者不可靠需要放到mlpRecentAddedMapPoints等待进一步检测。
+                */
                 if(!pMP->IsInKeyFrame(mpCurrentKeyFrame))
                 {
                     // 如果地图点不是来自当前帧的观测（比如来自局部地图点），为当前地图点添加观测
+                    /** qke comment @2023-12-06 >
+                    * AddObservation ： 记录下能观测到当前Mappoint的关键帧，以及Mappoint在当前关键帧中的索引i
+                    */
                     pMP->AddObservation(mpCurrentKeyFrame, i);
                     // 获得该点的平均观测方向和观测距离范围
                     pMP->UpdateNormalAndDepth();
@@ -338,6 +360,9 @@ void LocalMapping::CreateNewMapPoints()
     for(size_t i=0; i<vpNeighKFs.size(); i++)
     {
         // ! 疑似bug，正确应该是 if(i>0 && !CheckNewKeyFrames())
+        /** qke comment @2023-12-07 >
+        * 还是说有新的关键帧插入的时候，先暂停去处理新的关键帧呢
+        */
         if(i>0 && CheckNewKeyFrames())
             return;
 
@@ -623,7 +648,7 @@ void LocalMapping::SearchInNeighbors()
 {
     // Retrieve neighbor keyframes
     // Step 1：获得当前关键帧在共视图中权重排名前nn的邻接关键帧
-    // 开始之前先定义几个概念
+    // 开始之前先定义几个概
     // 当前关键帧的邻接关键帧，称为一级相邻关键帧，也就是邻居
     // 与一级相邻关键帧相邻的关键帧，称为二级相邻关键帧，也就是邻居的邻居
 
@@ -678,6 +703,11 @@ void LocalMapping::SearchInNeighbors()
         // 1.如果地图点能匹配关键帧的特征点，并且该点有对应的地图点，那么选择观测数目多的替换两个地图点
         // 2.如果地图点能匹配关键帧的特征点，并且该点没有对应的地图点，那么为该点添加该投影地图点
         // 注意这个时候对地图点融合的操作是立即生效的
+        /** qke comment @2023-12-08 >
+        * 将当前关键帧的地图点投影到他的关键帧（一级）和关键帧的关键帧上(二级)。如果这个地图点在投影之后能够和其中的地图点
+        * 匹配上，那么就会判断这个特征点是否已经成为别的地图点了，有的话就会比较哪个拥有更多的共视（共视越多越好）
+        * 否则就直接为这个地图点添加共视，同时也为这个关键帧添加地图点
+        */
         matcher.Fuse(pKFi,vpMapPointMatches);
     }
 
@@ -705,6 +735,9 @@ void LocalMapping::SearchInNeighbors()
                 continue;
 
             // 加入集合，并标记已经加入
+            /** qke comment @2023-12-11 >
+            * 这样下次如果在其他的一二级关键帧中拿到相同的Mappoint，那么就可以在734行直接跳过
+            */
             pMP->mnFuseCandidateForKF = mpCurrentKeyFrame->mnId;
             vpFuseCandidates.push_back(pMP);
         }
@@ -723,6 +756,9 @@ void LocalMapping::SearchInNeighbors()
         {
             if(!pMP->isBad())
             {
+                /** qke comment @2023-12-11 >
+                * Mappoint Update
+                */
                 // 在所有找到pMP的关键帧中，获得最佳的描述子
                 pMP->ComputeDistinctiveDescriptors();
 

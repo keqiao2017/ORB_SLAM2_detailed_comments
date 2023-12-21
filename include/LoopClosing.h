@@ -187,7 +187,7 @@ protected:
     LocalMapping *mpLocalMapper;
 
     /// 一个队列, 其中存储了参与到回环检测的关键帧 (当然这些关键帧也有可能因为各种原因被设置成为bad,这样虽然这个关键帧还是存储在这里但是实际上已经不再实质性地参与到回环检测的过程中去了)
-    std::list<KeyFrame*> mlpLoopKeyFrameQueue;
+
 
     /// 操作参与到回环检测队列中的关键帧时,使用的互斥量
     std::mutex mMutexLoopQueue;

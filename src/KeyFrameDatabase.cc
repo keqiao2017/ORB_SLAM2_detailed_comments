@@ -137,6 +137,10 @@ vector<KeyFrame*> KeyFrameDatabase::DetectLoopCandidates(KeyFrame* pKF, float mi
             {
                 KeyFrame* pKFi=*lit;
                 
+                /** qke comment @2023-12-14 >
+                * 如果当前帧还没有被标记为回环检测关键帧，因为和当前关键帧拥有相同的单词的关键帧可能不只有一处重合
+                * 如果已经选中一次，就做个标记下次就直接跳过
+                */
                 if(pKFi->mnLoopQuery!=pKF->mnId)    
                 {
                     // 还没有标记为pKF的闭环候选帧
@@ -285,17 +289,30 @@ vector<KeyFrame*> KeyFrameDatabase::DetectRelocalizationCandidates(Frame *F)
         for(DBoW2::BowVector::const_iterator vit=F->mBowVec.begin(), vend=F->mBowVec.end(); vit != vend; vit++)
         {
             // 根据倒排索引，提取所有包含该wordid的所有KeyFrame
+            /** qke comment @2023-11-30 >
+            *   倒排索引相对的是直接索引，直接索引以图像为基础，存储图像中的特征点index和其中的node id
+            *   倒排是以Word为基础，存储Word的权重以及该word出现在哪个图像里
+            *   所以这里是用来获得包含该wordid的所有KeyFrame的list
+            */
             list<KeyFrame*> &lKFs = mvInvertedFile[vit->first];
 
             for(list<KeyFrame*>::iterator lit=lKFs.begin(), lend= lKFs.end(); lit!=lend; lit++)
             {
                 KeyFrame* pKFi=*lit;
                 // pKFi->mnRelocQuery起标记作用，是为了防止重复选取
+                /** qke comment @2023-11-30 >
+                * 因为一个关键帧可能有很多个word id ，所以第一次Keyframe因为某个单词匹配上的时候给这个关键帧标记mnRelocQuery
+                * 当下次再遇到的时候就添加上mnRelocWords
+                */
                 if(pKFi->mnRelocQuery!=F->mnId)
                 {
                     // pKFi还没有标记为F的重定位候选帧
                     pKFi->mnRelocWords=0;
                     pKFi->mnRelocQuery=F->mnId;
+                    /** qke comment @2023-11-30 >
+                    * lKFsSharingWords 是代表与当前帧具有公共单词的关键帧
+                    * lKFs 只是有当前相同word id的关键帧，前者是后着的超集
+                    */
                     lKFsSharingWords.push_back(pKFi);
                 }
                 pKFi->mnRelocWords++;
@@ -348,6 +365,9 @@ vector<KeyFrame*> KeyFrameDatabase::DetectRelocalizationCandidates(Frame *F)
     // Lets now accumulate score by covisibility
     // Step 4：计算lScoreAndMatch中每个关键帧的共视关键帧组的总得分，得到最高组得分bestAccScore，并以此决定阈值2
     // 单单计算当前帧和某一关键帧的相似性是不够的，这里将与关键帧共视程度最高的前十个关键帧归为一组，计算累计得分
+    /** qke comment @2023-11-30 >
+    * 获得每一组里某一帧的最佳得分和一组的累积得分
+    */
     for(list<pair<float,KeyFrame*> >::iterator it=lScoreAndMatch.begin(), itend=lScoreAndMatch.end(); it!=itend; it++)
     {
         KeyFrame* pKFi = it->second;

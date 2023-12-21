@@ -484,6 +484,10 @@ void KeyFrame::UpdateConnections()
             // 对方关键帧也要添加这个信息
             // 更新KFcounter中该关键帧的mConnectedKeyFrameWeights
             // 更新其它KeyFrame的mConnectedKeyFrameWeights，更新其它关键帧与当前帧的连接权重
+            /** qke comment @2023-12-07 >
+            * 权重从大到小排列的连接关键帧mvpOrderedConnectedKeyFrames 
+            * 从大到小排列的权重mvOrderedWeights 
+            */
             (mit->first)->AddConnection(this,mit->second);
         }
     }
@@ -519,6 +523,9 @@ void KeyFrame::UpdateConnections()
         // ?bug 这里直接赋值，会把小于阈值的共视关系也放入mConnectedKeyFrameWeights，会增加计算量
         // ?但后续主要用mvpOrderedConnectedKeyFrames来取共视帧，对结果没影响
         mConnectedKeyFrameWeights = KFcounter;
+        /** qke comment @2023-12-07 >
+        * 感觉这里做重复了 和AddConnection里面的 UpdateBestCovisibles（）重复
+        */
         mvpOrderedConnectedKeyFrames = vector<KeyFrame*>(lKFs.begin(),lKFs.end());
         mvOrderedWeights = vector<int>(lWs.begin(), lWs.end());
 

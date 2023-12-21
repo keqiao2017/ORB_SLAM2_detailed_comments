@@ -879,6 +879,9 @@ void Tracking::MonocularInitialization()
             // 用当前帧更新上一帧
             mLastFrame = Frame(mCurrentFrame);
             // mvbPrevMatched  记录"上一帧"所有特征点
+            /** qke comment @2023-12-04 >
+            * 因为这里是尚未被初始化，所以这里的currentFrame就是初始化两帧中的上一帧
+            */
             mvbPrevMatched.resize(mCurrentFrame.mvKeysUn.size());
             for(size_t i=0; i<mCurrentFrame.mvKeysUn.size(); i++)
                 mvbPrevMatched[i]=mCurrentFrame.mvKeysUn[i].pt;
@@ -919,6 +922,9 @@ void Tracking::MonocularInitialization()
         // 对 mInitialFrame,mCurrentFrame 进行特征点匹配
         // mvbPrevMatched为参考帧的特征点坐标，初始化存储的是mInitialFrame中特征点坐标，匹配后存储的是匹配好的当前帧的特征点坐标
         // mvIniMatches 保存参考帧F1中特征点是否匹配上，index保存是F1对应特征点索引，值保存的是匹配好的F2特征点索引
+        /** qke comment @2023-12-04 >
+        *mInitialFrame 在第一次初始化的时候创建，mCurrentFrame 在调用track()函数之前创建
+        */
         int nmatches = matcher.SearchForInitialization(
             mInitialFrame,mCurrentFrame,    //初始化时的参考帧和当前帧
             mvbPrevMatched,                 //在初始化参考帧中提取得到的特征点
@@ -1219,6 +1225,7 @@ void Tracking::UpdateLastFrame()
     // Step 1：利用参考关键帧更新上一帧在世界坐标系下的位姿
     // 上一普通帧的参考关键帧，注意这里用的是参考关键帧（位姿准）而不是上上一帧的普通帧
     KeyFrame* pRef = mLastFrame.mpReferenceKF;  
+    // 假设mlRelativeFramePoses已经知道，Tlr从右往左读,表示为
     // ref_keyframe 到 lastframe的位姿变换
     cv::Mat Tlr = mlRelativeFramePoses.back();
 
@@ -1228,6 +1235,7 @@ void Tracking::UpdateLastFrame()
     mLastFrame.SetPose(Tlr*pRef->GetPose()); 
 
     // 如果上一帧为关键帧，或者单目的情况，则退出
+    //qke comment @2023-11-30 >此时单目已经获取了上一帧的世界Pose了
     if(mnLastKeyFrameId==mLastFrame.mnId || mSensor==System::MONOCULAR)
         return;
 
@@ -1242,6 +1250,7 @@ void Tracking::UpdateLastFrame()
 
     for(int i=0; i<mLastFrame.N;i++)
     {
+        //qke comment @2023-11-30 >单目没有 mvDepth这个vector
         float z = mLastFrame.mvDepth[i];
         if(z>0)
         {
@@ -1263,6 +1272,7 @@ void Tracking::UpdateLastFrame()
     int nPoints = 0;
     for(size_t j=0; j<vDepthIdx.size();j++)
     {
+        //qke comment @2023-11-30 >获取特征点Id  
         int i = vDepthIdx[j].second;
 
         bool bCreateNew = false;
@@ -1281,6 +1291,8 @@ void Tracking::UpdateLastFrame()
         {
             // Step 2.3：需要创建的点，包装为地图点。只是为了提高双目和RGBD的跟踪成功率，并没有添加复杂属性，因为后面会扔掉
             // 反投影到世界坐标系中
+            //qke comment @2023-11-30 >在已知深度的情况下，对特征点进行反投影
+            //qke comment @2023-11-30 >也就是从相机坐标系恢复到世界坐标系
             cv::Mat x3D = mLastFrame.UnprojectStereo(i);
             MapPoint* pNewMP = new MapPoint(
                 x3D,            // 世界坐标系坐标
@@ -1343,6 +1355,7 @@ bool Tracking::TrackWithMotionModel()
         th=7;//双目
 
     // Step 3：用上一帧地图点进行投影匹配，如果匹配点不够，则扩大搜索半径再来一次
+    /** qke comment @2023-11-30 > 投影匹配就是PNP匹配 */
     int nmatches = matcher.SearchByProjection(mCurrentFrame,mLastFrame,th,mSensor==System::MONOCULAR);
 
     // If few matches, uses a wider window search

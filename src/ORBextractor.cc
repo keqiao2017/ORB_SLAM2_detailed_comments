@@ -1573,6 +1573,8 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
     else
     {
 		//如果图像金字塔中有特征点，那么就创建这个存储描述子的矩阵，注意这个矩阵是存储整个图像金字塔中特征点的描述子的
+        //qke : 这里是的descriptor是为整个keyframe的，每个特征点的描述子占据一行
+        // 所以后面会用row(feature_idx)来获取特征点的描述子
         _descriptors.create(nkeypoints,		//矩阵的行数，对应为特征点的总个数
 							32, 			//矩阵的列数，对应为使用32*8=256位描述子
 							CV_8U);			//矩阵元素的格式

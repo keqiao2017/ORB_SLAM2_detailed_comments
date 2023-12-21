@@ -259,6 +259,7 @@ protected:
      */
     void ComputeThreeMaxima(std::vector<int>* histo, const int L, int &ind1, int &ind2, int &ind3);
 
+    // 通过构造函数来初始化
     float mfNNratio;            ///< 最优评分和次优评分的比例
     bool mbCheckOrientation;    ///< 是否检查特征点的方向
 };

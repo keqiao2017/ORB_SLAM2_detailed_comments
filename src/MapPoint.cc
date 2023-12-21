@@ -90,7 +90,7 @@ MapPoint::MapPoint(const cv::Mat &Pos, Map* pMap, Frame* pFrame, const int &idxF
 
     //这个算重了吧
     cv::Mat PC = Pos - Ow;
-    const float dist = cv::norm(PC);    //到相机的距离
+    const float dist = cv::norm(PC);    //Mappoint到相机光心的距离
     const int level = pFrame->mvKeysUn[idxF].octave;
     const float levelScaleFactor =  pFrame->mvScaleFactors[level];
     // the number of the levels 
@@ -101,10 +101,16 @@ MapPoint::MapPoint(const cv::Mat &Pos, Map* pMap, Frame* pFrame, const int &idxF
        不同, 所以在这里生成地图点的时候,也要再对其进行确认
        虽然我们拿不到每个图层之间确定的尺度信息,但是我们有缩放比例这个相对的信息哇
     */
-    mfMaxDistance = dist*levelScaleFactor;                              //当前图层的"深度"
-    mfMinDistance = mfMaxDistance/pFrame->mvScaleFactors[nLevels-1];    //该特征点上一个图层的"深度""
+    //mfMaxDistance 表示这个地图点它的最大深度（第7层），当然就是光心距离乘上最大的scale factor
+    //mfMinDistance 表示这个地图点它的最小深度（第0层）,当然就是光心距离乘上上一层的scale factor
+    //参考https://blog.csdn.net/RobotLife/article/details/87194017
+    mfMaxDistance = dist*levelScaleFactor;                              
+    mfMinDistance = mfMaxDistance/pFrame->mvScaleFactors[nLevels-1];    
 
     // 见 mDescriptor 在MapPoint.h中的注释 ==> 其实就是获取这个地图点的描述子
+    //qke comment @2023-11-30 >
+    //mDescriptors 是属于Frame的，因为有很多的特征点，每个特征点对应一行描述子
+    //mDescriptor 是属于Mappoint的，因为每个3D点只有一个描述子，可以对应多个特征点
     pFrame->mDescriptors.row(idxF).copyTo(mDescriptor);
 
     // MapPoints can be created from Tracking and Local Mapping. This mutex avoid conflicts with id.
@@ -200,7 +206,9 @@ void MapPoint::EraseObservation(KeyFrame* pKF)
         SetBadFlag();
 }
 
-// 能够观测到当前地图点的所有关键帧及该地图点在KF中的索引
+// 能够观测到当前地图点的所有关键帧 KF及该地图点在KF中的索引
+//qke comment @2023-11-30 >
+// 观测到这个地图点的所有关键帧，和其对应的特征点叫Observations
 map<KeyFrame*, size_t> MapPoint::GetObservations()
 {
     unique_lock<mutex> lock(mMutexFeatures);

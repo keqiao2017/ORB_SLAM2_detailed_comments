@@ -146,7 +146,6 @@ bool LoopClosing::DetectLoop()
         mlpLoopKeyFrameQueue.pop_front();
         // Avoid that a keyframe can be erased while it is being process by this thread
         // 设置当前关键帧不要在优化的过程中被删除
-        mpCurrentKF->SetNotErase();
     }
 
     //If the map contains less than 10 KF or less than 10 KF have passed from last loop detection
@@ -162,7 +161,7 @@ bool LoopClosing::DetectLoop()
     // Compute reference BoW similarity score
     // This is the lowest score to a connected keyframe in the covisibility graph
     // We will impose loop candidates to have a higher similarity than this
-    // Step 3：遍历当前回环关键帧所有连接（>15个共视地图点）关键帧，计算当前关键帧与每个共视关键的bow相似度得分，并得到最低得分minScore
+    // Step 3：遍历当前回环关键帧所有连接（>15个共视地图点）关键帧，计算当前关键帧与每个共视连接关键帧的bow相似度得分，并得到最低得分minScore
     const vector<KeyFrame*> vpConnectedKeyFrames = mpCurrentKF->GetVectorCovisibleKeyFrames();
     const DBoW2::BowVector &CurrentBowVec = mpCurrentKF->mBowVec;
     float minScore = 1;
@@ -246,6 +245,9 @@ bool LoopClosing::DetectLoop()
         // 上一次闭环的连续组链 std::vector<ConsistentGroup> mvConsistentGroups
         // 其中ConsistentGroup的定义：typedef pair<set<KeyFrame*>,int> ConsistentGroup
         // 其中 ConsistentGroup.first对应每个“连续组”中的关键帧集合，ConsistentGroup.second为每个“连续组”的连续长度
+        /** qke comment @2023-12-15 >
+        * 如果第一次建立连续组，那么就跳过这个循环
+        */
         for(size_t iG=0, iendG=mvConsistentGroups.size(); iG<iendG; iG++)
         {
             // 取出之前的一个子连续组中的关键帧集合
@@ -700,6 +702,7 @@ void LoopClosing::CorrectLoop()
 
                 // g2oSic：当前关键帧 mpCurrentKF 到其共视关键帧 pKFi 的Sim3 相对变换
                 // 这里是non-correct, 所以scale=1.0
+                /** qke comment @2023-12-18 > * sim3的构造函数 */
                 g2o::Sim3 g2oSic(Converter::toMatrix3d(Ric),Converter::toVector3d(tic),1.0);
                 // 当前帧的位姿固定不动，其它的关键帧根据相对关系得到Sim3调整的位姿
                 g2o::Sim3 g2oCorrectedSiw = g2oSic*mg2oScw;

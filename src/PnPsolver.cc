@@ -415,6 +415,9 @@ bool PnPsolver::Refine()
     compute_pose(mRi, mti);
 
     // Check inliers
+    /** qke comment @2023-12-04 >
+    * 根据重投影误差来筛选内点,并记录在mvbInliersi和mnInliersi中
+    */
     CheckInliers();
 
     // 通过CheckInliers函数得到那些inlier点用来提纯 -- 其实应该说是通过提纯的过程，哪些点被再一次标注为了内点
@@ -454,11 +457,17 @@ void PnPsolver::CheckInliers()
         cv::Point2f P2D = mvP2D[i];
 
         // 将3D点由世界坐标系旋转到相机坐标系
+        /** qke comment @2023-12-04 >
+        * 只是利用公式X=Rx+t将3D点旋转到相机坐标系
+        */
         float Xc = mRi[0][0]*P3Dw.x+mRi[0][1]*P3Dw.y+mRi[0][2]*P3Dw.z+mti[0];
         float Yc = mRi[1][0]*P3Dw.x+mRi[1][1]*P3Dw.y+mRi[1][2]*P3Dw.z+mti[1];
         float invZc = 1/(mRi[2][0]*P3Dw.x+mRi[2][1]*P3Dw.y+mRi[2][2]*P3Dw.z+mti[2]);
 
         // 将相机坐标系下的3D进行针孔投影
+        /** qke comment @2023-12-04 >
+        * 将3D点转移到归一化平面上
+        */
         double ue = uc + fu * Xc * invZc;
         double ve = vc + fv * Yc * invZc;
 
@@ -469,6 +478,9 @@ void PnPsolver::CheckInliers()
         float error2 = distX*distX+distY*distY;
 
         // 判定
+        /** qke comment @2023-12-04 >
+        *ORB提取特征点的金字塔层数不同，因此对应的误差error[i] = ocatave*5.991
+        */
         if(error2<mvMaxError[i])
         {
             mvbInliersi[i]=true;
@@ -551,6 +563,9 @@ void PnPsolver::choose_control_points(void)
 
   // 遍历每个匹配点中世界坐标系3D点，然后对每个坐标轴加和
   // number_of_correspondences 默认是 4
+  /** qke comment @2023-12-02 >
+  * j代表三个维度，i代表四个控制点，所以加权是把四个点的三个维度加权
+  */
   for(int i = 0; i < number_of_correspondences; i++)
     for(int j = 0; j < 3; j++)
       cws[0][j] += pws[3 * i + j];
@@ -605,7 +620,7 @@ void PnPsolver::choose_control_points(void)
 
 /**
  * @brief 求解世界坐标系下四个控制点的系数alphas，在相机坐标系下系数不变
- * 
+ *         齐次重心坐标
  */
 void PnPsolver::compute_barycentric_coordinates(void)
 {

@@ -678,6 +678,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
             }   // 判断这个地图点是否靠谱
         } // 遍历这个关键帧观测到的每一个地图点
     } // 遍历 lLocalKeyFrames 中的每一个关键帧
+    /** qke comment @2023-12-11 >
+    * 所以第一步和第二步的操作是把共识一级关键帧和其地图点保存起来
+    */
 
     // Fixed Keyframes. Keyframes that see Local MapPoints but that are not Local Keyframes
     // Step 3 得到能被局部地图点观测到，但不属于局部关键帧的关键帧(二级相连)，这些二级相连关键帧在局部BA优化时不优化
@@ -699,6 +702,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
                 // 将局部地图点能观测到的、但是不属于局部BA范围的关键帧的mnBAFixedForKF标记为pKF（触发局部BA的当前关键帧）的mnId
                 pKFi->mnBAFixedForKF=pKF->mnId;
                 if(!pKFi->isBad())
+                /** qke comment @2023-12-11 >
+                * 加入的是二级关键帧，只用来做约束
+                */
                     lFixedCameras.push_back(pKFi);
             }
         }
@@ -733,6 +739,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         // 设置初始优化位姿
         vSE3->setEstimate(Converter::toSE3Quat(pKFi->GetPose()));
         vSE3->setId(pKFi->mnId);
+        /** qke comment @2023-12-11 >
+        * set fixed 就是顶点不优化的意思
+        */
         // 如果是初始关键帧，要锁住位姿不优化
         vSE3->setFixed(pKFi->mnId==0);
         optimizer.addVertex(vSE3);
@@ -825,6 +834,9 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
                     e->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id)));
                     // 边的第一个顶点是观测到该地图点的关键帧
                     e->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(pKFi->mnId)));
+                    /** qke comment @2023-12-11 >
+                    * obs 就是重投影误差的结果
+                    */
                     e->setMeasurement(obs);
                     // 权重为特征点所在图像金字塔的层数的倒数
                     const float &invSigma2 = pKFi->mvInvLevelSigma2[kpUn.octave];
@@ -907,7 +919,6 @@ void Optimizer::LocalBundleAdjustment(KeyFrame *pKF, bool* pbStopFlag, Map* pMap
         // 遍历所有的单目误差边
         for(size_t i=0, iend=vpEdgesMono.size(); i<iend;i++)
         {
-            g2o::EdgeSE3ProjectXYZ* e = vpEdgesMono[i];
             MapPoint* pMP = vpMapPointEdgeMono[i];
 
             if(pMP->isBad())
@@ -1472,9 +1483,15 @@ int Optimizer::OptimizeSim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint *> &
                 // 地图点转换到各自相机坐标系下的三维点
                 cv::Mat P3D1w = pMP1->GetWorldPos();
                 cv::Mat P3D1c = R1w*P3D1w + t1w;
+                /** qke comment @2023-12-16 >
+                * 设置估计值 setEstimate，当然就是
+                */
                 vPoint1->setEstimate(Converter::toVector3d(P3D1c));
                 vPoint1->setId(id1);
                 // 地图点不优化
+                /** qke comment @2023-12-16 >
+                * Mappoint is supposed to be correct in this moment
+                */
                 vPoint1->setFixed(true);
                 optimizer.addVertex(vPoint1);
 
@@ -1505,11 +1522,17 @@ int Optimizer::OptimizeSim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint *> &
 
         // Step 4.1 闭环候选帧地图点投影到当前关键帧的边 -- 正向投影
         g2o::EdgeSim3ProjectXYZ* e12 = new g2o::EdgeSim3ProjectXYZ();
-        // vertex(id2)对应的是pKF2 VertexSBAPointXYZ 类型的三维点
+        // vertex(id2)对应的是pKF2 VertexSBAPointXYZ 类型的三维点0
+        /** qke comment @2023-12-17 >
+        * 一个边需要2个顶点，一个点是pkf2中的三维点，另一个是需要优化的SIM3变换
+        */
         e12->setVertex(0, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(id2)));
         // ? 为什么这里添加的节点的id为0？
         // 回答：因为vertex(0)对应的是 VertexSim3Expmap 类型的待优化Sim3，其id 为 0
         e12->setVertex(1, dynamic_cast<g2o::OptimizableGraph::Vertex*>(optimizer.vertex(0)));
+        /** qke comment @2023-12-16 >
+        * setMeasurement 函数用来定义观测值
+        */
         e12->setMeasurement(obs1);
         // 信息矩阵和这个特征点的可靠程度（在图像金字塔中的图层）有关
         const float &invSigmaSquare1 = pKF1->mvInvLevelSigma2[kpUn1.octave];

@@ -241,7 +241,7 @@ cv::Mat Sim3Solver::iterate(int nIterations, bool &bNoMore, vector<bool> &vbInli
         for(short i = 0; i < 3; ++i)
         {
             // DBoW3中的随机数生成函数
-            int randi = DUtils::Random::RandomInt(0, vAvailableIndices.size()-1);
+            int radi = DUtils::Random::RandomInt(0, vAvailableIndices.size()-1);
 
             int idx = vAvailableIndices[randi];
 

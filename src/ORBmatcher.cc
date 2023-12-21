@@ -268,18 +268,24 @@ int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPoin
 
     // We perform the matching over ORB that belong to the same vocabulary node (at a certain level)
     // 将属于同一节点(特定层)的ORB特征进行匹配
+    //KFIT 是 Keyframe <node_id,vector<feature_idx>>的迭代器
+    //FIT 是 Normframe <node_id,vector<feature_idx>>的迭代器
     DBoW2::FeatureVector::const_iterator KFit = vFeatVecKF.begin();
     DBoW2::FeatureVector::const_iterator Fit = F.mFeatVec.begin();
     DBoW2::FeatureVector::const_iterator KFend = vFeatVecKF.end();
     DBoW2::FeatureVector::const_iterator Fend = F.mFeatVec.end();
 
+    
     while(KFit != KFend && Fit != Fend)
     {
         // Step 1：分别取出属于同一node的ORB特征点(只有属于同一node，才有可能是匹配点)
         // first 元素就是node id，遍历
+        //遍历某一Node_id下的所有特征点
         if(KFit->first == Fit->first) 
         {
             // second 是该node内存储的feature index
+            // vIndicesKF 是keyframe的所有特征点集合
+            // vIndicesF 是frame的所有特征点集合
             const vector<unsigned int> vIndicesKF = KFit->second;
             const vector<unsigned int> vIndicesF = Fit->second;
 
@@ -287,9 +293,11 @@ int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPoin
             for(size_t iKF=0; iKF<vIndicesKF.size(); iKF++)
             {
                 // 关键帧该节点中特征点的索引
+                //用ikf作为vector的指针取出一特征点的index:realIdxKF
                 const unsigned int realIdxKF = vIndicesKF[iKF];
 
                 // 取出KF中该特征对应的地图点
+                //根据index realIdxKF 来取出这个特征点对应的地图点
                 MapPoint* pMP = vpMapPointsKF[realIdxKF]; 
 
                 if(!pMP)
@@ -298,6 +306,7 @@ int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPoin
                 if(pMP->isBad())
                     continue;
 
+                //每个keyframe的每个特征点的描述子只占其中的一行
                 const cv::Mat &dKF= pKF->mDescriptors.row(realIdxKF); // 取出KF中该特征对应的描述子
 
                 int bestDist1=256; // 最好的距离（最小距离）
@@ -305,9 +314,10 @@ int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPoin
                 int bestDist2=256; // 次好距离（倒数第二小距离）
 
                 // Step 3：遍历F中属于该node的特征点，寻找最佳匹配点
+                // 把Keyframe中的一个特征点和Frame中的每一个特征点做一一比对
                 for(size_t iF=0; iF<vIndicesF.size(); iF++)
                 {
-                    // 和上面for循环重名了,这里的realIdxF是指普通帧该节点中特征点的索引
+                    // 这里的realIdxF是指普通帧该节点中特征点的索引
                     const unsigned int realIdxF = vIndicesF[iF];
 
                     // 如果地图点存在，说明这个点已经被匹配过了，不再匹配，加快速度
@@ -829,6 +839,7 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint *> &
 
                         if(mbCheckOrientation)
                         {
+                            //记录下匹配点的旋转角度差，并入直方图中
                             float rot = vKeysUn1[idx1].angle-vKeysUn2[bestIdx2].angle;
                             if(rot<0.0)
                                 rot+=360.0f;
@@ -883,6 +894,7 @@ int ORBmatcher::SearchByBoW(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint *> &
 /*
  * @brief 利用基础矩阵F12极线约束，用BoW加速匹配两个关键帧的未匹配的特征点，产生新的匹配点对
  * 具体来说，pKF1图像的每个特征点与pKF2图像同一node节点的所有特征点依次匹配，判断是否满足对极几何约束，满足约束就是匹配的特征点
+ * 和之前的代码比较类似，唯一的区别的就是加了一些额外的限制，以防止两个相机之间的距离太近，导致三角化不准
  * @param pKF1          关键帧1
  * @param pKF2          关键帧2
  * @param F12           从2到1的基础矩阵
@@ -907,6 +919,7 @@ int ORBmatcher::SearchForTriangulation(KeyFrame *pKF1, KeyFrame *pKF2, cv::Mat F
     cv::Mat C2 = R2w*Cw+t2w; 
     const float invz = 1.0f/C2.at<float>(2);
     // 得到KF1的相机光心在KF2中的坐标，也叫极点，这里是像素坐标
+    // SLAM 14讲 公式7.42
     const float ex =pKF2->fx*C2.at<float>(0)*invz+pKF2->cx;
     const float ey =pKF2->fy*C2.at<float>(1)*invz+pKF2->cy;
 
@@ -953,6 +966,7 @@ int ORBmatcher::SearchForTriangulation(KeyFrame *pKF1, KeyFrame *pKF2, cv::Mat F
                 
                 // If there is already a MapPoint skip
                 // 由于寻找的是未匹配的特征点，所以pMP1应该为NULL
+                // !为什么这里需要的是地图点呢？
                 if(pMP1)
                     continue;
 
@@ -1263,6 +1277,8 @@ int ORBmatcher::Fuse(KeyFrame *pKF, const vector<MapPoint *> &vpMapPoints, const
             MapPoint* pMPinKF = pKF->GetMapPoint(bestIdx);
             if(pMPinKF)
             {
+                /** qke comment @2023-12-08 >
+                * 是说如果有同一个特征点对应不同的地图点，那就要优中选优了 */
                 // 如果最佳匹配点有对应有效地图点，选择被观测次数最多的那个替换
                 if(!pMPinKF->isBad())
                 {
@@ -1486,12 +1502,18 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
     // Step 2：记录已经匹配的特征点
     for(int i=0; i<N1; i++)
     {
+
+        //@param[in] vpMatches12       
+        //i表示匹配的pKF1 特征点索引，vpMatches12[i]表示匹配的pKF2中地图点，null表示没有匹配
         MapPoint* pMP = vpMatches12[i];
+        //表示pkf1中的特征点idx，有相应的pkf2匹配Mapoint
         if(pMP)
         {
             // pKF1中第i个特征点已经匹配成功
             vbAlreadyMatched1[i]=true;
             // 得到该地图点在关键帧pkF2 中的id
+            //mappoint 可以通过GetIndexInKeyFrame来获取
+            //当前地图点在某个关键帧的观测中，对应的特征点的ID
             int idx2 = pMP->GetIndexInKeyFrame(pKF2);
             if(idx2>=0 && idx2<N2)
                 // pKF2中第idx2个特征点在pKF1中有匹配
@@ -1507,9 +1529,10 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
     // 之前使用SearchByBoW进行特征点匹配时会有漏匹配
     for(int i1=0; i1<N1; i1++)
     {
+        // 获取当前Keyframe1中的地图点
         MapPoint* pMP = vpMapPoints1[i1];
 
-        // 该特征点存在对应的地图点或者该特征点已经有匹配点了，跳过
+        // 该特征点不存在对应的地图点或者该特征点已经有匹配点了，跳过
         if(!pMP || vbAlreadyMatched1[i1])
             continue;
         // 地图点是要删掉的，跳过
@@ -1528,6 +1551,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
             continue;
 
         // 投影到camera2图像坐标 (u,v)
+        // 把相机2中的坐标转换到投影图像坐标
         const float invz = 1.0/p3Dc2.at<float>(2);
         const float x = p3Dc2.at<float>(0)*invz;
         const float y = p3Dc2.at<float>(1)*invz;
@@ -1545,7 +1569,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
         const float dist3D = cv::norm(p3Dc2);
 
         // Depth must be inside the scale invariance region
-        // 深度值在有效范围内
+        // 深度值在有效范围内（不能超过最大深度，也不能小于最小深度）
         if(dist3D<minDistance || dist3D>maxDistance )
             continue;
 
@@ -1564,6 +1588,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
             continue;
 
         // Match to the most similar keypoint in the radius
+        // 获取当前keyframe1中的地图点中的描述子（是的，地图点也有描述子）
         const cv::Mat dMP = pMP->GetDescriptor();
 
         int bestDist = INT_MAX;
@@ -1701,7 +1726,7 @@ int ORBmatcher::SearchBySim3(KeyFrame *pKF1, KeyFrame *pKF2, vector<MapPoint*> &
 }
 
 /**
- * @brief 将上一帧跟踪的地图点投影到当前帧，并且搜索匹配点。用于跟踪前一帧
+ * @brief 将上一帧跟踪的地图点pnp投影到当前帧，并且搜索匹配点。用于跟踪前一帧
  * 步骤
  * Step 1 建立旋转直方图，用于检测旋转一致性
  * Step 2 计算当前帧和前一帧的平移向量
@@ -1735,6 +1760,8 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, 
     const cv::Mat tcw = CurrentFrame.mTcw.rowRange(0,3).col(3);
 
     //当前相机坐标系到世界坐标系的平移向量
+    //qke comment @2023-11-30 >其实就是把平移变量从相机坐标系转换到世界坐标系
+    //qke comment @2023-11-30 >求解过程就是对Tcw求逆，然后取出其第三列，具体过程看文档
     const cv::Mat twc = -Rcw.t()*tcw; 
 
     //上一帧的相机位姿
@@ -1814,6 +1841,8 @@ int ORBmatcher::SearchByProjection(Frame &CurrentFrame, const Frame &LastFrame, 
 
                     // 如果该特征点已经有对应的MapPoint了,则退出该次循环
                     if(CurrentFrame.mvpMapPoints[i2])
+                        //qke comment @2023-11-30 >
+                        //如果观测到这个地图点的相机数目大于0
                         if(CurrentFrame.mvpMapPoints[i2]->Observations()>0)
                             continue;
 

@@ -5,6 +5,7 @@
             "includePath": [
                 "${workspaceFolder}/**",
                 "/usr/local",
+                "/usr/local/include/eigen3/Eigen",
                 "/opt/homebrew/Cellar/opencv/",
                 "/opt/homebrew/Cellar/opencv/4.8.1_4/include/opencv4",
                 "/opt/homebrew/Cellar/opencv@3/**"

@@ -106,7 +106,8 @@
 		"__split_buffer": "cpp",
 		"array": "cpp",
 		"string_view": "cpp",
-		"__bit_reference": "cpp"
+		"__bit_reference": "cpp",
+		"core": "cpp"
 	},
 	"C_Cpp.errorSquiggles": "enabled"
 }
